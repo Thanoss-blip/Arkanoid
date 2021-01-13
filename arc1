@@ -1,0 +1,409 @@
+import os
+import sys
+import pygame
+import random
+
+def load_level(filename):
+    filename = "data/" + filename
+    with open(filename, 'r') as mapFile:
+        level_map = [line.strip() for line in mapFile]
+    return level_map
+
+def generate_level(level):
+    x = 0
+    y = 0
+    for i in range(len(level)):
+        for j in range(len(level[i])):
+            if level[i][j] == 'g':
+                b = Brick(x, y)
+                bricks.add(b)
+            if level[i][j] == 'b':
+                b = BrickBreak(x, y)
+                bricks.add(b)
+            if level[i][j] == 'y':
+                b = InvisibleBreak(x, y)
+                bricks.add(b)
+            x += 60
+        y += 30
+        x = 0
+
+def collision(obj1, obj2):
+    if obj2.vx >= 0:
+        xdelta = obj2.rect.right - obj1.rect.left
+    elif obj2.vx < 0:
+        xdelta = obj1.rect.right - obj2.rect.left
+    if obj2.vy >= 0:
+        ydelta = obj2.rect.bottom - obj1.rect.top
+    elif obj2.vy < 0:
+        ydelta = obj1.rect.bottom - obj2.rect.top
+    if xdelta > ydelta:
+        obj2.vy = -obj2.vy
+    elif ydelta > xdelta:
+        obj2.vx = -obj2.vx
+    elif xdelta == ydelta:
+        obj2.vy = -obj2.vy
+        obj2.vx = -obj2.vx
+
+def load_image(name, colorkey=None):
+    fullname = os.path.join('data', name)
+    if not os.path.isfile(fullname):
+        print(f"Файл с изображением '{fullname}' не найден")
+        sys.exit()
+    image = pygame.image.load(fullname)
+    return image
+
+def booster(x, y):
+    probability_list = [True] * 20 + [False] * 40
+    probability = random.choice(probability_list)
+    if probability is True:
+        choice = random.choice([Laser_boost, Boost, Reduce_boost])
+        boosts.add(choice(x, y))
+
+class Brick(pygame.sprite.Sprite):
+    image = load_image("к.png")
+    image = pygame.transform.scale(image, (60, 30))
+    def __init__(self, x, y, *group):
+        super().__init__(*group)
+        self.image = Brick.image
+        self.rect = self.image.get_rect()
+        self.mask = pygame.mask.from_surface(self.image)
+        self.rect.x = x
+        self.rect.y = y
+    def update(self):
+        if pygame.sprite.spritecollide(self, bullets, True):
+            self.kill()
+            create_particles((self.rect.x, self.rect.y))
+        if pygame.sprite.collide_mask(self, ball):
+            collision(self, ball)
+            self.kill()
+            create_particles((self.rect.x, self.rect.y))
+            booster(self.rect.x, self.rect.y)
+
+class BrickBreak(Brick):
+    image = load_image("к2.png")
+    image = pygame.transform.scale(image, (60, 30))
+    def __init__(self, x, y, *group):
+        super().__init__(x, y, *group)
+        self.image = BrickBreak.image
+        self.check = False
+
+    def update(self):
+        if pygame.sprite.spritecollide(self, bullets, True):
+            if self.check is True:
+                self.kill()
+                create_particles((self.rect.x, self.rect.y))
+            elif self.check is False:
+                image = load_image("к2-2.png")
+                image = pygame.transform.scale(image, (60, 30))
+                self.image = image
+                self.check = True
+                
+        if pygame.sprite.collide_mask(self, ball):
+            collision(self, ball)
+            if self.check is True:
+                self.kill()
+                create_particles((self.rect.x, self.rect.y))
+                booster(self.rect.x, self.rect.y)
+            elif self.check is False:
+                image = load_image("к2-2.png")
+                image = pygame.transform.scale(image, (60, 30))
+                self.image = image
+                self.check = True
+
+class InvisibleBreak(Brick):
+    image = load_image("к3-2.png")
+    image = pygame.transform.scale(image, (60, 30))
+    def __init__(self, x, y, *group):
+        super().__init__(x, y, *group)
+        self.image = InvisibleBreak.image
+        self.check2 = False
+
+    def update(self):
+        if pygame.sprite.spritecollide(self, bullets, True):
+            if self.check2 is True:
+                self.kill()
+                create_particles((self.rect.x, self.rect.y))
+            elif self.check2 is False:
+                image = load_image("к3.png")
+                image = pygame.transform.scale(image, (60, 30))
+                self.image = image
+                self.check2 = True
+
+        if pygame.sprite.collide_mask(self, ball):
+            collision(self, ball)
+            if self.check2 is True:
+                self.kill()
+                create_particles((self.rect.x, self.rect.y))
+                booster(self.rect.x, self.rect.y)
+            elif self.check2 is False:
+                image = load_image("к3.png")
+                image = pygame.transform.scale(image, (60, 30))
+                self.image = image
+                self.check2 = True
+            
+
+class Ball(pygame.sprite.Sprite):
+    image = load_image("шарик.png")
+    image = pygame.transform.scale(image, (25, 25))
+
+    def __init__(self, *group):
+        super().__init__(*group)
+        self.image = Ball.image
+        self.check = False
+        self.rect = self.image.get_rect()
+        self.vx = 0
+        self.vy = 0
+        self.mask = pygame.mask.from_surface(self.image)
+        self.rect.x = platform.rect.x + platform.rect.width // 2 - 12
+        self.rect.y = platform.rect.y - 25
+
+    def update(self):
+        self.rect = self.rect.move(self.vx, self.vy)
+        if pygame.sprite.spritecollideany(self, horizontal_borders):
+            self.vy = -self.vy
+        if pygame.sprite.spritecollideany(self, vertical_borders):
+            self.vx = -self.vx
+        if self.check is False:
+            self.rect.x = platform.rect.x + platform.rect.width // 2 - 12
+            self.rect.y = platform.rect.y - 25
+        if pygame.sprite.collide_mask(self, platform):
+            collision(platform, ball)
+            
+class Border(pygame.sprite.Sprite):
+    def __init__(self, x1, y1, x2, y2):
+        super().__init__(all_sprites)
+        if x1 == x2:
+            self.add(vertical_borders)
+            self.image = pygame.Surface([1, y2 - y1])
+            self.rect = pygame.Rect(x1, y1, 1, y2 - y1)
+        else:
+            self.add(horizontal_borders)
+            self.image = pygame.Surface([x2 - x1, 1])
+            self.rect = pygame.Rect(x1, y1, x2 - x1, 1)
+
+class Platform(pygame.sprite.Sprite):
+    image = load_image("платформа.png")
+    image = pygame.transform.scale(image, (200, 25))
+    def __init__(self):
+        super().__init__(all_sprites)
+        self.image = Platform.image
+        self.rect = self.image.get_rect()
+        self.mask = pygame.mask.from_surface(self.image)
+        self.rect.x = 200
+        self.rect.y = 700
+        
+    def update(self, *args):
+        if args != ():
+            x = args[0][0]
+            if x > 0:
+                delta = self.rect.x + self.rect.width
+                if delta + x > 1000:
+                    self.rect.x = 1000 - self.rect.width
+                else:
+                    self.rect.x += x
+            elif x < 0:
+                delta = self.rect.x
+                if abs(x) > delta:
+                    self.rect.x = 0
+                else:
+                    self.rect.x = self.rect.x + x
+            
+
+class Boost(pygame.sprite.Sprite):
+    image = load_image("фр.png")
+    image = pygame.transform.scale(image, (40, 40))
+    def __init__(self, x, y, *group):
+        super().__init__(*group)
+        self.image = Boost.image
+        self.rect = self.image.get_rect()
+        self.vx = 0
+        self.vy = 2
+        self.mask = pygame.mask.from_surface(self.image)
+        self.rect.x = x
+        self.rect.y = y
+    def update(self):
+        self.rect = self.rect.move(self.vx, self.vy)
+        if pygame.sprite.collide_mask(self, platform):
+            x = platform.rect.x
+            image = load_image("платформа.png")
+            if platform.rect.width == 200:
+                platform.image = pygame.transform.scale(image, (300, 25))
+            if platform.rect.width == 100:
+                platform.image = pygame.transform.scale(image, (200, 25))
+            platform.rect = platform.image.get_rect()
+            platform.rect.y = 700
+            platform.rect.x = x
+            platform.mask = pygame.mask.from_surface(platform.image)
+            self.kill()
+
+class Reduce_boost(Boost):
+    image = load_image("фу.png")
+    image = pygame.transform.scale(image, (40, 40))
+    def __init__(self, x, y, *group):
+        super().__init__(x, y, *group)
+        self.image = Reduce_boost.image
+        
+    def update(self):
+        self.rect = self.rect.move(self.vx, self.vy)
+        if pygame.sprite.collide_mask(self, platform):
+            x = platform.rect.x
+            image = load_image("платформа.png")
+            if platform.rect.width == 200:
+                platform.image = pygame.transform.scale(image, (100, 25))
+            if platform.rect.width == 300:
+                platform.image = pygame.transform.scale(image, (200, 25))
+            platform.rect = platform.image.get_rect()
+            platform.rect.y = 700
+            platform.rect.x = x
+            platform.mask = pygame.mask.from_surface(platform.image)
+            self.kill()
+
+
+class Laser_boost(Boost):
+    image = load_image("фл.png")
+    image = pygame.transform.scale(image, (40, 40))
+    def __init__(self, x, y, *group):
+        super().__init__(x, y, *group)
+        self.image = Laser_boost.image
+        
+    def update(self):
+        self.rect = self.rect.move(self.vx, self.vy)
+        if pygame.sprite.collide_mask(self, platform):
+            laser1 = Laser('left')
+            laser2 = Laser('right')
+            lasers.add(laser1)
+            lasers.add(laser2)
+            self.kill()
+
+class Laser(pygame.sprite.Sprite):
+    image = load_image("Пущка.png")
+    image = pygame.transform.scale(image, (20, 20))
+    def __init__(self, typ_e, *group):
+        super().__init__(*group)
+        self.image = Laser.image
+        self.rect = self.image.get_rect()
+        if typ_e == 'left':
+            self.rect.x = platform.rect.x
+            self.rect.y = platform.rect.y - 18
+        else:
+            self.rect.x = platform.rect.x + platform.rect.width - 20
+            self.rect.y = platform.rect.y - 18
+        self.type = typ_e
+        
+    def update(self, *args):
+        if self.type == 'left':
+            self.rect.x = platform.rect.x
+            self.rect.y = platform.rect.y - 18
+        else:
+            self.rect.x = platform.rect.x + platform.rect.width - 20
+            self.rect.y = platform.rect.y - 18
+        if args!= ():
+            if args[0] == True:
+                bullet1 = Bullet(self.rect.x, self.rect.y)
+                bullet2 = Bullet(self.rect.x, self.rect.y)
+                bullets.add(bullet1)
+                bullets.add(bullet2) 
+            
+class Bullet(pygame.sprite.Sprite):
+    image = load_image("Пулька.png")
+    image = pygame.transform.scale(image, (20, 20))
+    def __init__(self, x, y, *group):
+        super().__init__(*group)
+        self.image = Bullet.image
+        self.rect = self.image.get_rect()
+        self.vx = 0
+        self.vy = -4
+        self.rect.x = x
+        self.rect.y = y
+        
+    def update(self):
+        self.rect = self.rect.move(self.vx, self.vy)
+
+class Particle(pygame.sprite.Sprite):
+    firer = [load_image("частица.png")]
+    fire = []
+    for scale in (3, 3, 3):
+        fire.append(pygame.transform.scale(firer[0], (scale, scale)))
+
+    def __init__(self, pos, dx, dy):
+        super().__init__(all_sprites)
+        self.image = random.choice(self.fire)
+        self.rect = self.image.get_rect()
+        self.velocity = [dx, dy]
+        self.rect.x, self.rect.y = pos
+        self.gravity = 1
+
+    def update(self):
+        self.velocity[1] += self.gravity
+        self.rect.x += self.velocity[0]
+        self.rect.y += self.velocity[1]
+        if not self.rect.colliderect(screen_rect):
+            self.kill()
+
+def create_particles(position):
+    particle_count = 20
+    numbers = range(-5, 6)
+    for _ in range(particle_count):
+        Particle(position, random.choice(numbers), random.choice(numbers))
+        
+                
+if __name__ == '__main__': 
+    pygame.init()
+    size = width, height = 1000, 800
+    pygame.display.set_caption('Арканоид')
+    screen = pygame.display.set_mode(size)
+    screen.fill('black')
+    running = True
+    fps = 80
+    screen_rect = (0, 0, width, height)
+    
+    bricks = pygame.sprite.Group()
+    all_sprites = pygame.sprite.Group()
+    boosts = pygame.sprite.Group()
+    lasers = pygame.sprite.Group()
+    bullets = pygame.sprite.Group()
+    horizontal_borders = pygame.sprite.Group()
+    vertical_borders = pygame.sprite.Group()
+    
+    platform = Platform()
+    ball = Ball()
+    all_sprites.add(ball)
+    Border(0, 0, width, 0)
+    Border(0, height, width, height)
+    Border(0, 0, 0, height)
+    Border(width, 0, width, height)
+    clock = pygame.time.Clock()
+    generate_level(load_level('level 2.txt'))
+
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            if event.type == pygame.MOUSEMOTION:
+                platform.update(event.rel)
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if ball.check is False:
+                    ball.check = True
+                    ball.vx = random.choice([-5, -4, -3, -2, -1, 1, 2, 3, 4, 5])
+                    ball.vy = random.choice([-5, -4, -3, -2, -1])
+                lasers.update(True)
+        screen.fill('black')
+        bricks.update()
+        bricks.draw(screen)
+        
+        all_sprites.update()
+        all_sprites.draw(screen)
+        
+        boosts.update()
+        boosts.draw(screen)
+        
+        lasers.update()
+        lasers.draw(screen)
+
+        bullets.update()
+        bullets.draw(screen)
+        
+        clock.tick(fps)
+        pygame.display.flip()
+    pygame.quit()
+    

@@ -2,6 +2,10 @@ import os
 import sys
 import pygame
 import random
+import datetime
+
+# функция, отвечающая за загрузку "карты уровня"
+
 
 def load_level(filename):
     filename = "data/" + filename
@@ -9,24 +13,35 @@ def load_level(filename):
         level_map = [line.strip() for line in mapFile]
     return level_map
 
+
+# функция генерации нового уровня,
+# в неё передаётся "карта уровня"
 def generate_level(level):
     x = 0
     y = 0
+    k = 0
     for i in range(len(level)):
         for j in range(len(level[i])):
             if level[i][j] == 'g':
                 b = Brick(x, y)
                 bricks.add(b)
+                k += 1
             if level[i][j] == 'b':
                 b = BrickBreak(x, y)
                 bricks.add(b)
+                k += 1
             if level[i][j] == 'y':
                 b = InvisibleBreak(x, y)
                 bricks.add(b)
+                k += 1
             x += 60
         y += 30
         x = 0
+    return k
 
+
+# функция, обрабатывающая столкновение мяча
+# и других игровых объектов
 def collision(obj1, obj2):
     if obj2.vx >= 0:
         xdelta = obj2.rect.right - obj1.rect.left
@@ -44,6 +59,8 @@ def collision(obj1, obj2):
         obj2.vy = -obj2.vy
         obj2.vx = -obj2.vx
 
+
+# функция, отвечающая за загрузку изображения
 def load_image(name, colorkey=None):
     fullname = os.path.join('data', name)
     if not os.path.isfile(fullname):
@@ -52,16 +69,24 @@ def load_image(name, colorkey=None):
     image = pygame.image.load(fullname)
     return image
 
+
+# функция, отвечающая за генерацию "призовых капсул",
+# которые появляются с вероятностью 1 к 3 (33%)
+# тип "капсулы" выбирается случайно
 def booster(x, y):
-    probability_list = [True] * 20 + [False] * 40
+    probability_list = [True] * 1 + [False] * 3
     probability = random.choice(probability_list)
     if probability is True:
         choice = random.choice([Laser_boost, Boost, Reduce_boost])
         boosts.add(choice(x, y))
 
+
+# класс кирпича (блока)
 class Brick(pygame.sprite.Sprite):
+
     image = load_image("к.png")
     image = pygame.transform.scale(image, (60, 30))
+
     def __init__(self, x, y, *group):
         super().__init__(*group)
         self.image = Brick.image
@@ -69,60 +94,88 @@ class Brick(pygame.sprite.Sprite):
         self.mask = pygame.mask.from_surface(self.image)
         self.rect.x = x
         self.rect.y = y
+
     def update(self):
+        global BRICKS_COUNT, SCORE
         if pygame.sprite.spritecollide(self, bullets, True):
             self.kill()
             create_particles((self.rect.x, self.rect.y))
+            BRICKS_COUNT -= 1
+            SCORE += 5
         if pygame.sprite.collide_mask(self, ball):
+            # при столкновении с шаром вызывается функция,
+            # корректно обрабатывающая столкновение
+            # с какой стороной кирпича столкнулся шарик
             collision(self, ball)
             self.kill()
+            BRICKS_COUNT -= 1
+            SCORE += 5
             create_particles((self.rect.x, self.rect.y))
             booster(self.rect.x, self.rect.y)
 
+
+# класс кирпичей, ломающихся не с первого раза
+# наследуется от основного класса кирпича
 class BrickBreak(Brick):
     image = load_image("к2.png")
     image = pygame.transform.scale(image, (60, 30))
+
     def __init__(self, x, y, *group):
         super().__init__(x, y, *group)
         self.image = BrickBreak.image
         self.check = False
 
     def update(self):
+        global BRICKS_COUNT, SCORE
         if pygame.sprite.spritecollide(self, bullets, True):
             if self.check is True:
                 self.kill()
                 create_particles((self.rect.x, self.rect.y))
-            elif self.check is False:
-                image = load_image("к2-2.png")
-                image = pygame.transform.scale(image, (60, 30))
-                self.image = image
-                self.check = True
-                
-        if pygame.sprite.collide_mask(self, ball):
-            collision(self, ball)
-            if self.check is True:
-                self.kill()
-                create_particles((self.rect.x, self.rect.y))
-                booster(self.rect.x, self.rect.y)
+                BRICKS_COUNT -= 1
+                SCORE += 10
             elif self.check is False:
                 image = load_image("к2-2.png")
                 image = pygame.transform.scale(image, (60, 30))
                 self.image = image
                 self.check = True
 
+        if pygame.sprite.collide_mask(self, ball):
+            collision(self, ball)
+            if self.check is True:
+                self.kill()
+                create_particles((self.rect.x, self.rect.y))
+                BRICKS_COUNT -= 1
+                SCORE += 10
+                booster(self.rect.x, self.rect.y)
+            elif self.check is False:
+                # при первом ударе шарика кирпич "размораживается"
+                # спрайт его меняется
+                image = load_image("к2-2.png")
+                image = pygame.transform.scale(image, (60, 30))
+                self.image = image
+                self.check = True
+
+
+# класс невидимых до первого столкновения с шаром кирпичей
+# наследуется от основного класса кирпича
 class InvisibleBreak(Brick):
+
     image = load_image("к3-2.png")
     image = pygame.transform.scale(image, (60, 30))
+
     def __init__(self, x, y, *group):
         super().__init__(x, y, *group)
         self.image = InvisibleBreak.image
         self.check2 = False
 
     def update(self):
+        global BRICKS_COUNT, SCORE
         if pygame.sprite.spritecollide(self, bullets, True):
             if self.check2 is True:
                 self.kill()
                 create_particles((self.rect.x, self.rect.y))
+                BRICKS_COUNT -= 1
+                SCORE += 10
             elif self.check2 is False:
                 image = load_image("к3.png")
                 image = pygame.transform.scale(image, (60, 30))
@@ -134,15 +187,19 @@ class InvisibleBreak(Brick):
             if self.check2 is True:
                 self.kill()
                 create_particles((self.rect.x, self.rect.y))
+                BRICKS_COUNT -= 1
+                SCORE += 10
                 booster(self.rect.x, self.rect.y)
             elif self.check2 is False:
                 image = load_image("к3.png")
                 image = pygame.transform.scale(image, (60, 30))
                 self.image = image
                 self.check2 = True
-            
 
+
+# класс шарика
 class Ball(pygame.sprite.Sprite):
+
     image = load_image("шарик.png")
     image = pygame.transform.scale(image, (25, 25))
 
@@ -158,9 +215,15 @@ class Ball(pygame.sprite.Sprite):
         self.rect.y = platform.rect.y - 25
 
     def update(self):
+        global LIVES, RETURN
         self.rect = self.rect.move(self.vx, self.vy)
         if pygame.sprite.spritecollideany(self, horizontal_borders):
             self.vy = -self.vy
+            # при пересечении нижней границы отнимается одна жизнь
+            if self.rect.y >= 800 - 25:
+                LIVES -= 1
+                RETURN = True
+
         if pygame.sprite.spritecollideany(self, vertical_borders):
             self.vx = -self.vx
         if self.check is False:
@@ -168,8 +231,11 @@ class Ball(pygame.sprite.Sprite):
             self.rect.y = platform.rect.y - 25
         if pygame.sprite.collide_mask(self, platform):
             collision(platform, ball)
-            
+
+
+# класс стенок
 class Border(pygame.sprite.Sprite):
+
     def __init__(self, x1, y1, x2, y2):
         super().__init__(all_sprites)
         if x1 == x2:
@@ -181,9 +247,13 @@ class Border(pygame.sprite.Sprite):
             self.image = pygame.Surface([x2 - x1, 1])
             self.rect = pygame.Rect(x1, y1, x2 - x1, 1)
 
+
+# класс платформы
 class Platform(pygame.sprite.Sprite):
+
     image = load_image("платформа.png")
     image = pygame.transform.scale(image, (200, 25))
+
     def __init__(self):
         super().__init__(all_sprites)
         self.image = Platform.image
@@ -191,8 +261,10 @@ class Platform(pygame.sprite.Sprite):
         self.mask = pygame.mask.from_surface(self.image)
         self.rect.x = 200
         self.rect.y = 700
-        
+
     def update(self, *args):
+        # движение платформы, в *args передаётся аргумент
+        # rel (сдвиг платформы по обеим осям)
         if args != ():
             x = args[0][0]
             if x > 0:
@@ -207,11 +279,15 @@ class Platform(pygame.sprite.Sprite):
                     self.rect.x = 0
                 else:
                     self.rect.x = self.rect.x + x
-            
 
+
+# класс призовой капсулы "расширение",
+# от него наследуются все остальные классы
 class Boost(pygame.sprite.Sprite):
+
     image = load_image("фр.png")
     image = pygame.transform.scale(image, (40, 40))
+
     def __init__(self, x, y, *group):
         super().__init__(*group)
         self.image = Boost.image
@@ -221,11 +297,15 @@ class Boost(pygame.sprite.Sprite):
         self.mask = pygame.mask.from_surface(self.image)
         self.rect.x = x
         self.rect.y = y
+
     def update(self):
+        global SCORE
         self.rect = self.rect.move(self.vx, self.vy)
         if pygame.sprite.collide_mask(self, platform):
+            SCORE += 20
             x = platform.rect.x
             image = load_image("платформа.png")
+            # увеличение платформы
             if platform.rect.width == 200:
                 platform.image = pygame.transform.scale(image, (300, 25))
             if platform.rect.width == 100:
@@ -236,17 +316,25 @@ class Boost(pygame.sprite.Sprite):
             platform.mask = pygame.mask.from_surface(platform.image)
             self.kill()
 
+
+# класс призовой капсулы "уменьшение доски"
 class Reduce_boost(Boost):
+
     image = load_image("фу.png")
     image = pygame.transform.scale(image, (40, 40))
+
     def __init__(self, x, y, *group):
         super().__init__(x, y, *group)
         self.image = Reduce_boost.image
-        
+
     def update(self):
+        global SCORE
         self.rect = self.rect.move(self.vx, self.vy)
         if pygame.sprite.collide_mask(self, platform):
+            SCORE += 20
             x = platform.rect.x
+            # уменьшение платформы
+            # от 300 пикс. к 200, от 200 к 100
             image = load_image("платформа.png")
             if platform.rect.width == 200:
                 platform.image = pygame.transform.scale(image, (100, 25))
@@ -259,25 +347,35 @@ class Reduce_boost(Boost):
             self.kill()
 
 
+# класс призовой капсулы "установка для стрельбы"
 class Laser_boost(Boost):
+
     image = load_image("фл.png")
     image = pygame.transform.scale(image, (40, 40))
+
     def __init__(self, x, y, *group):
         super().__init__(x, y, *group)
         self.image = Laser_boost.image
-        
+
     def update(self):
+        global SCORE
         self.rect = self.rect.move(self.vx, self.vy)
         if pygame.sprite.collide_mask(self, platform):
+            SCORE += 20
             laser1 = Laser('left')
             laser2 = Laser('right')
             lasers.add(laser1)
             lasers.add(laser2)
             self.kill()
 
+
+# сама "установка для стрельбы"
+# лазерная установка - небольшие пушки по краям платформы
 class Laser(pygame.sprite.Sprite):
+
     image = load_image("Пущка.png")
     image = pygame.transform.scale(image, (20, 20))
+
     def __init__(self, typ_e, *group):
         super().__init__(*group)
         self.image = Laser.image
@@ -289,7 +387,7 @@ class Laser(pygame.sprite.Sprite):
             self.rect.x = platform.rect.x + platform.rect.width - 20
             self.rect.y = platform.rect.y - 18
         self.type = typ_e
-        
+
     def update(self, *args):
         if self.type == 'left':
             self.rect.x = platform.rect.x
@@ -297,16 +395,22 @@ class Laser(pygame.sprite.Sprite):
         else:
             self.rect.x = platform.rect.x + platform.rect.width - 20
             self.rect.y = platform.rect.y - 18
-        if args!= ():
-            if args[0] == True:
+        if args != ():
+            # сюда передаётся аргумент True, при нажатии лкм
+            # который создаёт пули
+            if args[0] is True:
                 bullet1 = Bullet(self.rect.x, self.rect.y)
                 bullet2 = Bullet(self.rect.x, self.rect.y)
                 bullets.add(bullet1)
-                bullets.add(bullet2) 
-            
+                bullets.add(bullet2)
+
+
+# класс пуль, смещаются относительно оси "y"
 class Bullet(pygame.sprite.Sprite):
+
     image = load_image("Пулька.png")
     image = pygame.transform.scale(image, (20, 20))
+
     def __init__(self, x, y, *group):
         super().__init__(*group)
         self.image = Bullet.image
@@ -315,11 +419,14 @@ class Bullet(pygame.sprite.Sprite):
         self.vy = -4
         self.rect.x = x
         self.rect.y = y
-        
+
     def update(self):
         self.rect = self.rect.move(self.vx, self.vy)
 
+
+# частицы, которые возникают при уничтожении кирпичей
 class Particle(pygame.sprite.Sprite):
+
     firer = [load_image("частица.png")]
     fire = []
     for scale in (3, 3, 3):
@@ -340,15 +447,102 @@ class Particle(pygame.sprite.Sprite):
         if not self.rect.colliderect(screen_rect):
             self.kill()
 
+
+# функция создания частичек
 def create_particles(position):
     particle_count = 20
     numbers = range(-5, 6)
     for _ in range(particle_count):
         Particle(position, random.choice(numbers), random.choice(numbers))
-        
-                
-if __name__ == '__main__': 
+
+
+# стартовый экран
+def start_screen():
+    size = width, height = 560, 400
+    pygame.display.set_caption('Арканоид')
+    screen1 = pygame.display.set_mode(size)
+    intro_text = "Для начала игры нажмите ЛКМ"
+
+    fon = pygame.transform.scale(load_image('Escaball.png'), size)
+    screen1.blit(fon, (0, 0))
+    font = pygame.font.SysFont('kacstbook', 30)
+    text_coord = 50
+    string_rendered = font.render(intro_text, 1, pygame.Color('white'))
+    intro_rect = string_rendered.get_rect()
+    intro_rect.top = 10
+    intro_rect.x = 10
+    screen1.blit(string_rendered, intro_rect)
+    clock = pygame.time.Clock()
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.KEYDOWN or \
+                    event.type == pygame.MOUSEBUTTONDOWN:
+                return
+        pygame.display.flip()
+        clock.tick(80)
+
+
+# экран конца игры
+def end_screen():
+    size = width, height = 560, 400
+    pygame.display.set_caption('Арканоид')
+    screen2 = pygame.display.set_mode(size)
+    screen2.fill('blue')
+    # сдесь осуществляется чтение из файла
+    # с набранными очками за все игры
+    # и записывается новая информация о счете
+    with open('data/SCORE.txt', 'a') as inp:
+        print(str(SCORE), ' - ', str(datetime.datetime.now()),
+              file=inp, end='\n')
+
+    with open('data/SCORE.txt', 'r') as outp:
+        total = [line.strip() for line in outp]
+    total = ["Your last results:"] + total
+    font = pygame.font.Font(None, 30)
+    text_coord = 50
+    for line in total:
+        string_rendered = font.render(line, 1, pygame.Color('white'))
+        intro_rect = string_rendered.get_rect()
+        text_coord += 10
+        intro_rect.top = text_coord
+        intro_rect.x = 10
+        text_coord += intro_rect.height
+        screen.blit(string_rendered, intro_rect)
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+        pygame.display.flip()
+        clock.tick(80)
+
+
+# функция рисования на экране окошка счета и счетчика жизни
+def draw(screen):
+    font = pygame.font.Font(None, 27)
+    text = font.render('SCORE: ' + str(SCORE), True, (100, 255, 100))
+    text_x = 800
+    text_y = 760
+    text_w = text.get_width()
+    text_h = text.get_height()
+    screen.blit(text, (text_x, text_y))
+    pygame.draw.rect(screen, (0, 255, 0), (text_x - 10, text_y - 10,
+                                           text_w + 20, text_h + 20), 1)
+    text = font.render('LIVES: ' + str(LIVES), True, (100, 255, 100))
+    text_x = 700
+    text_y = 760
+    text_w = text.get_width()
+    text_h = text.get_height()
+    screen.blit(text, (text_x, text_y))
+    pygame.draw.rect(screen, (0, 255, 0), (text_x - 10, text_y - 10,
+                                           text_w + 20, text_h + 20), 1)
+
+# далее следует создание главного окна и всех необходимых групп спрайтов,
+# а также сам игровой цикл
+if __name__ == '__main__':
     pygame.init()
+    start_screen()
     size = width, height = 1000, 800
     pygame.display.set_caption('Арканоид')
     screen = pygame.display.set_mode(size)
@@ -356,7 +550,7 @@ if __name__ == '__main__':
     running = True
     fps = 80
     screen_rect = (0, 0, width, height)
-    
+
     bricks = pygame.sprite.Group()
     all_sprites = pygame.sprite.Group()
     boosts = pygame.sprite.Group()
@@ -364,7 +558,7 @@ if __name__ == '__main__':
     bullets = pygame.sprite.Group()
     horizontal_borders = pygame.sprite.Group()
     vertical_borders = pygame.sprite.Group()
-    
+
     platform = Platform()
     ball = Ball()
     all_sprites.add(ball)
@@ -373,7 +567,13 @@ if __name__ == '__main__':
     Border(0, 0, 0, height)
     Border(width, 0, width, height)
     clock = pygame.time.Clock()
-    generate_level(load_level('level 2.txt'))
+    LIVES = 3
+    SCORE = 0
+    CURRENT_LEVEL = 1
+    BRICKS_COUNT = generate_level(load_level('level ' +
+                                             str(CURRENT_LEVEL) + '.txt'))
+    RETURN = False
+    draw(screen)
 
     while running:
         for event in pygame.event.get():
@@ -384,26 +584,68 @@ if __name__ == '__main__':
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if ball.check is False:
                     ball.check = True
-                    ball.vx = random.choice([-5, -4, -3, -2, -1, 1, 2, 3, 4, 5])
-                    ball.vy = random.choice([-5, -4, -3, -2, -1])
+                    ball.vx = random.choice([3, 4, 5, 6, 7])
+                    ball.vy = 10 - ball.vx
                 lasers.update(True)
+
         screen.fill('black')
+        draw(screen)
+
         bricks.update()
         bricks.draw(screen)
-        
+
         all_sprites.update()
         all_sprites.draw(screen)
-        
+
         boosts.update()
         boosts.draw(screen)
-        
+
         lasers.update()
         lasers.draw(screen)
 
         bullets.update()
         bullets.draw(screen)
-        
+        # потеря жизни
+        if RETURN is True:
+            bricks = pygame.sprite.Group()
+            boosts = pygame.sprite.Group()
+            lasers = pygame.sprite.Group()
+            bullets = pygame.sprite.Group()
+            platform.kill()
+            platform = Platform()
+            ball.check = False
+            BRICKS_COUNT = generate_level(load_level(
+                'level ' + str(CURRENT_LEVEL) + '.txt'))
+            RETURN = False
+
+        # потеря всех трёх жизней
+        if LIVES == 0:
+            platform.kill()
+            platform = Platform()
+            bricks = pygame.sprite.Group()
+            boosts = pygame.sprite.Group()
+            lasers = pygame.sprite.Group()
+            bullets = pygame.sprite.Group()
+            ball.check = False
+            CURRENT_LEVEL = 1
+            end_screen()
+
+        # ситуация, когда уничтожены все кирпичи (переход
+        # на новый уровень)
+        if BRICKS_COUNT == 0:
+            platform.kill()
+            platform = Platform()
+            bricks = pygame.sprite.Group()
+            boosts = pygame.sprite.Group()
+            lasers = pygame.sprite.Group()
+            bullets = pygame.sprite.Group()
+            ball.check = False
+            if CURRENT_LEVEL == 3:
+                end_screen()
+            else:
+                CURRENT_LEVEL += 1
+                BRICKS_COUNT = generate_level(load_level(
+                    'level ' + str(CURRENT_LEVEL) + '.txt'))
         clock.tick(fps)
         pygame.display.flip()
     pygame.quit()
-    

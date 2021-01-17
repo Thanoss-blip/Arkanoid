@@ -99,10 +99,14 @@ class Brick(pygame.sprite.Sprite):
         global BRICKS_COUNT, SCORE
         if pygame.sprite.spritecollide(self, bullets, True):
             self.kill()
+            sound = pygame.mixer.Sound('data/collision.mp3')
+            sound.play()
             create_particles((self.rect.x, self.rect.y))
             BRICKS_COUNT -= 1
             SCORE += 5
         if pygame.sprite.collide_mask(self, ball):
+            sound = pygame.mixer.Sound('data/collision.mp3')
+            sound.play()
             # при столкновении с шаром вызывается функция,
             # корректно обрабатывающая столкновение
             # с какой стороной кирпича столкнулся шарик
@@ -128,6 +132,8 @@ class BrickBreak(Brick):
     def update(self):
         global BRICKS_COUNT, SCORE
         if pygame.sprite.spritecollide(self, bullets, True):
+            sound = pygame.mixer.Sound('data/collision.mp3')
+            sound.play()
             if self.check is True:
                 self.kill()
                 create_particles((self.rect.x, self.rect.y))
@@ -140,6 +146,8 @@ class BrickBreak(Brick):
                 self.check = True
 
         if pygame.sprite.collide_mask(self, ball):
+            sound = pygame.mixer.Sound('data/collision.mp3')
+            sound.play()
             collision(self, ball)
             if self.check is True:
                 self.kill()
@@ -171,6 +179,8 @@ class InvisibleBreak(Brick):
     def update(self):
         global BRICKS_COUNT, SCORE
         if pygame.sprite.spritecollide(self, bullets, True):
+            sound = pygame.mixer.Sound('data/collision.mp3')
+            sound.play()
             if self.check2 is True:
                 self.kill()
                 create_particles((self.rect.x, self.rect.y))
@@ -183,6 +193,8 @@ class InvisibleBreak(Brick):
                 self.check2 = True
 
         if pygame.sprite.collide_mask(self, ball):
+            sound = pygame.mixer.Sound('data/collision.mp3')
+            sound.play()
             collision(self, ball)
             if self.check2 is True:
                 self.kill()
@@ -302,6 +314,8 @@ class Boost(pygame.sprite.Sprite):
         global SCORE
         self.rect = self.rect.move(self.vx, self.vy)
         if pygame.sprite.collide_mask(self, platform):
+            sound = pygame.mixer.Sound('data/boost.mp3')
+            sound.play()
             SCORE += 20
             x = platform.rect.x
             image = load_image("платформа.png")
@@ -312,6 +326,8 @@ class Boost(pygame.sprite.Sprite):
                 platform.image = pygame.transform.scale(image, (200, 25))
             platform.rect = platform.image.get_rect()
             platform.rect.y = 700
+            if x + platform.rect.width > 1000:
+                x = 1000 - platform.rect.width
             platform.rect.x = x
             platform.mask = pygame.mask.from_surface(platform.image)
             self.kill()
@@ -331,6 +347,8 @@ class Reduce_boost(Boost):
         global SCORE
         self.rect = self.rect.move(self.vx, self.vy)
         if pygame.sprite.collide_mask(self, platform):
+            sound = pygame.mixer.Sound('data/boost.mp3')
+            sound.play()
             SCORE += 20
             x = platform.rect.x
             # уменьшение платформы
@@ -361,6 +379,8 @@ class Laser_boost(Boost):
         global SCORE
         self.rect = self.rect.move(self.vx, self.vy)
         if pygame.sprite.collide_mask(self, platform):
+            sound = pygame.mixer.Sound('data/boost.mp3')
+            sound.play()
             SCORE += 20
             laser1 = Laser('left')
             laser2 = Laser('right')
@@ -399,6 +419,8 @@ class Laser(pygame.sprite.Sprite):
             # сюда передаётся аргумент True, при нажатии лкм
             # который создаёт пули
             if args[0] is True:
+                sound = pygame.mixer.Sound('data/shoot.mp3')
+                sound.play()
                 bullet1 = Bullet(self.rect.x, self.rect.y)
                 bullet2 = Bullet(self.rect.x, self.rect.y)
                 bullets.add(bullet1)
@@ -486,10 +508,20 @@ def start_screen():
 
 # экран конца игры
 def end_screen():
-    size = width, height = 560, 400
+    if WIN is True:
+        sound = pygame.mixer.Sound('data/win.mp3')
+        sound.play()
+    else:
+        sound = pygame.mixer.Sound('data/game over.mp3')
+        sound.play()
+    size = width, height = 1000, 800
     pygame.display.set_caption('Арканоид')
     screen2 = pygame.display.set_mode(size)
-    screen2.fill('blue')
+    if WIN is True:
+        fon = pygame.transform.scale(load_image('win_screen.png'), size)
+    else:
+        fon = pygame.transform.scale(load_image('lose_screen.png'), size)
+    screen2.blit(fon, (0, 0))
     # сдесь осуществляется чтение из файла
     # с набранными очками за все игры
     # и записывается новая информация о счете
@@ -503,11 +535,11 @@ def end_screen():
     font = pygame.font.Font(None, 30)
     text_coord = 50
     for line in total:
-        string_rendered = font.render(line, 1, pygame.Color('white'))
+        string_rendered = font.render(line, 1, pygame.Color(76, 187, 23))
         intro_rect = string_rendered.get_rect()
         text_coord += 10
         intro_rect.top = text_coord
-        intro_rect.x = 10
+        intro_rect.x = 40
         text_coord += intro_rect.height
         screen.blit(string_rendered, intro_rect)
     while True:
@@ -569,6 +601,7 @@ if __name__ == '__main__':
     clock = pygame.time.Clock()
     LIVES = 3
     SCORE = 0
+    WIN = False
     CURRENT_LEVEL = 1
     BRICKS_COUNT = generate_level(load_level('level ' +
                                              str(CURRENT_LEVEL) + '.txt'))
@@ -607,6 +640,8 @@ if __name__ == '__main__':
         bullets.draw(screen)
         # потеря жизни
         if RETURN is True:
+            sound = pygame.mixer.Sound('data/live lost.mp3')
+            sound.play()
             bricks = pygame.sprite.Group()
             boosts = pygame.sprite.Group()
             lasers = pygame.sprite.Group()
@@ -641,9 +676,12 @@ if __name__ == '__main__':
             bullets = pygame.sprite.Group()
             ball.check = False
             if CURRENT_LEVEL == 3:
+                WIN = True
                 end_screen()
             else:
                 CURRENT_LEVEL += 1
+                sound = pygame.mixer.Sound('data/next level.mp3')
+                sound.play()
                 BRICKS_COUNT = generate_level(load_level(
                     'level ' + str(CURRENT_LEVEL) + '.txt'))
         clock.tick(fps)

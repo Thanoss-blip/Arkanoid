@@ -522,7 +522,7 @@ def end_screen():
     else:
         fon = pygame.transform.scale(load_image('lose_screen.png'), size)
     screen2.blit(fon, (0, 0))
-    # сдесь осуществляется чтение из файла
+    # здесь осуществляется чтение из файла
     # с набранными очками за все игры
     # и записывается новая информация о счете
     with open('data/SCORE.txt', 'a') as inp:
